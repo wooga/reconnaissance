@@ -31,7 +31,6 @@ discover(WaitTime, Server) ->
 
 init([Port, CallbackModule]) ->
     process_flag(trap_exit, true),
-    CallbackModule = reconnaissance_example_callback,
     ReceiveSocket  = receive_socket(Port),
     SendSocket     = send_socket(),
     {ok, #state{
