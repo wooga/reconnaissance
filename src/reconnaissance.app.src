@@ -8,5 +8,8 @@
                   stdlib
                  ]},
   {mod, { reconnaissance_app, []}},
-  {env, []}
+  {env, [
+        {port, 31337},
+        {callback_module, reconnaissance_example_callback}
+    ]}
  ]}.

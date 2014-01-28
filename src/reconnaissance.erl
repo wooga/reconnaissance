@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([start/0, start_link/0, discover/1, discover/2]).
+-export([start/0, start_link/2, discover/0, discover/1, discover/2]).
 
 -record(state, {port, send_socket, receive_socket, response_port, callback_module, nodes = []}).
 
@@ -13,8 +13,11 @@
 start() ->
     application:start(reconnaissance).
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Port, CallbackModule) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port, CallbackModule], []).
+
+discover() ->
+    discover(?MODULE).
 
 discover(Server) ->
     discover(500, Server).
@@ -26,10 +29,8 @@ discover(WaitTime, Server) ->
 
 %% Callbacks
 
-init([]) ->
+init([Port, CallbackModule]) ->
     process_flag(trap_exit, true),
-    % TODO CONFIG PORT
-    Port           = 9876,
     CallbackModule = reconnaissance_example_callback,
     ReceiveSocket  = receive_socket(Port),
     SendSocket     = send_socket(),
@@ -60,7 +61,6 @@ handle_info({udp, _, IP, InPortNo, << "REQ", Payload/binary >>}, State = #state{
     Response        = CallbackModule:response(IP, InPortNo, Payload),
     Prefix          = <<"RSP">>,
     ResponsePort    = send_response(IP, InPortNo, << Prefix/binary, Response/binary >>),
-    io:format("OutPort: ~p", [ResponsePort]),
     {noreply, State#state{ response_port = ResponsePort }};
 
 handle_info({udp, _, IP, Port, << "RSP", Payload/binary >>}, State = #state{

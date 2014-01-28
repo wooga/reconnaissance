@@ -23,8 +23,10 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
+    {ok, Port}           = application:get_env(reconnaissance, port),
+    {ok, CallbackModule} = application:get_env(reconnaissance, callback_module),
     Child = {reconnaissance,
-        {reconnaissance, start_link, []},
+         {reconnaissance, start_link, [Port, CallbackModule]},
         permanent, 5000, worker, [reconnaissance]},
     {ok, { {one_for_one, 5, 10}, [Child]} }.
 
