@@ -6,4 +6,4 @@
               {mod,{reconnaissance_app,[]}},
               {env,[]},
               {modules,[reconnaissance,reconnaissance_app,
-                        reconnaissance_sup]}]}.
+                        reconnaissance_example_callback,reconnaissance_sup]}]}.

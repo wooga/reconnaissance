@@ -5,10 +5,9 @@
 
 -export([start/0, start_link/0, discover/1, discover/2]).
 
--record(state, {port, send_socket, receive_socket, encode_cb, handle_cb, nodes = []}).
+-record(state, {port, send_socket, receive_socket, response_port, callback_module, nodes = []}).
 
 -define(ADDRESS,  {224, 0, 0, 1}).
-
 %% Public API
 
 start() ->
@@ -21,7 +20,7 @@ discover(Server) ->
     discover(500, Server).
 
 discover(WaitTime, Server) ->
-    gen_server:cast(discover, Server),
+    gen_server:cast(Server, discover),
     timer:sleep(WaitTime),
     gen_server:call(Server, nodes).
 
@@ -30,37 +29,54 @@ discover(WaitTime, Server) ->
 init([]) ->
     process_flag(trap_exit, true),
     % TODO CONFIG PORT
-    Port          = 9876,
-    ReceiveSocket = receive_socket(Port),
-    SendSocket    = send_socket(),
-    EncodeCB      = fun() -> <<"hello">> end,
-    HandleCB      = fun(Packet) -> io:format("GOT: ~p", [Packet]) end,
+    Port           = 9876,
+    CallbackModule = reconnaissance_example_callback,
+    ReceiveSocket  = receive_socket(Port),
+    SendSocket     = send_socket(),
     {ok, #state{
-            port           = Port,
-            send_socket    = SendSocket,
-            receive_socket = ReceiveSocket,
-            encode_cb      = EncodeCB,
-            handle_cb      = HandleCB}}.
+            port            = Port,
+            send_socket     = SendSocket,
+            receive_socket  = ReceiveSocket,
+            callback_module = CallbackModule}}.
+
 
 handle_call(nodes, _From, State) ->
     {reply, State#state.nodes, State}.
 
-handle_cast(discover, State) ->
-    Message = State#state.encode_cb,
+
+handle_cast(discover, State = #state{ callback_module = CallbackModule }) ->
+    Request = CallbackModule:request(),
+    Prefix  = <<"REQ">>,
     ok = gen_udp:send(State#state.send_socket,
           ?ADDRESS,
           State#state.port,
-          Message()),
+          << Prefix/binary, Request/binary >>),
     {noreply, State#state{ nodes = [] }}.
 
-handle_info({udp, Socket, IP, InPortNo, Packet}, State = #state{
-            receive_socket = Socket,
-            handle_cb      = HandleCB,
-            nodes          = Nodes }) ->
 
-    NodeData = HandleCB(IP, InPortNo, Packet),
-    NodesNew = [NodeData | Nodes],
+handle_info({udp, _, IP, InPortNo, << "REQ", Payload/binary >>}, State = #state{
+    callback_module = CallbackModule}) ->
+
+    Response        = CallbackModule:response(IP, InPortNo, Payload),
+    Prefix          = <<"RSP">>,
+    ResponsePort    = send_response(IP, InPortNo, << Prefix/binary, Response/binary >>),
+    io:format("OutPort: ~p", [ResponsePort]),
+    {noreply, State#state{ response_port = ResponsePort }};
+
+handle_info({udp, _, IP, Port, << "RSP", Payload/binary >>}, State = #state{
+    callback_module = CallbackModule,
+    nodes           = Nodes,
+    response_port   = ResponsePort }) ->
+
+    NodesNew = case originates_from_self(IP, Port, ResponsePort) of
+        true ->
+            Nodes;
+        false ->
+            Response = CallbackModule:handle_response(IP, Port, Payload),
+            [Response | Nodes]
+    end,
     {noreply, State#state{ nodes = NodesNew }}.
+
 
 terminate(_Reason, _State) ->
     ok.
@@ -68,9 +84,11 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+
 send_socket() ->
-    {ok, SendSocket} = gen_udp:open(0, [{ip, {0, 0, 0, 0}}]),
+    {ok, SendSocket} = gen_udp:open(0, [{ip, {0, 0, 0, 0}}, binary]),
     SendSocket.
+
 
 receive_socket(Port) ->
     Opts = [
@@ -81,3 +99,26 @@ receive_socket(Port) ->
         binary],
     {ok, ReceiveSocket} = gen_udp:open(Port, Opts),
     ReceiveSocket.
+
+
+send_response(Host, Port, Response) ->
+    {ok, Socket} = gen_udp:open(0, [binary]),
+    gen_udp:send(Socket, Host, Port, Response),
+    {ok, OutPort} = inet:port(Socket),
+    gen_udp:close(Socket),
+    OutPort.
+
+
+originates_from_self(IP, InAndOutPort, InAndOutPort) ->
+    lists:member(IP, local_ips());
+originates_from_self(_, _, _) ->
+    false.
+
+
+local_ips() ->
+    {ok, Addr} = inet:getifaddrs(),
+    IPs = lists:flatten(
+        lists:map(fun({_, Flags}) ->
+            lists:map(fun({addr, IP}) -> IP; (_) -> undefined end, Flags) end,
+        Addr)),
+    lists:filter(fun(undefined) -> false; (_) -> true end, IPs).
