@@ -47,3 +47,13 @@ The API calls are:
 3. `reconnaissance:discover/2` also specify the time to wait in ms.
 
 Et voilá: reconnaissance!
+
+# Configuration
+
+Use in the environment:
+```
+{reconnaissance, [
+    {port, 31337},
+    {callback_module, reconnaissance_example_callback}
+]}
+```
