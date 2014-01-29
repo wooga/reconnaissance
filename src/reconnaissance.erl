@@ -85,7 +85,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 send_socket() ->
-    {ok, SendSocket} = gen_udp:open(0, [{ip, {0, 0, 0, 0}}, binary]),
+    {ok, SendSocket} = gen_udp:open(0, [{ip, {0, 0, 0, 0}}, {multicast_ttl, 10}, binary]),
     SendSocket.
 
 
