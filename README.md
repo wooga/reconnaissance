@@ -57,3 +57,7 @@ Use in the environment:
     {callback_module, reconnaissance_example_callback}
 ]}
 ```
+
+Make sure multicast is routed propery by the OS:
+
+```sudo route add 224.0.0.1 10.8.0.3```
