@@ -46,7 +46,7 @@ The API calls are:
 2. `reconnaissance:discover/1` use a server name other than `reconnaissance`
 3. `reconnaissance:discover/2` also specify the time to wait in ms.
 
-Et voilá: reconnaissance!
+Et voilà: reconnaissance!
 
 # Configuration
 
